@@ -8,7 +8,6 @@ type Invoice = {
   days_overdue: number
   score: number
   impact: number
-  // new but harmless if absent from API; used only to show "To:"
   customer_email?: string | null
 }
 
@@ -39,15 +38,15 @@ export default function App() {
   useEffect(() => { document.documentElement.classList.toggle('dark', dark) }, [dark])
   function toggleTheme() {
     setDark(prev => {
-      const next = !prev;
-      try { localStorage.setItem('theme', next ? 'dark' : 'light'); } catch {}
-      return next;
-    });
+      const next = !prev
+      try { localStorage.setItem('theme', next ? 'dark' : 'light') } catch {}
+      return next
+    })
   }
   function resetToSystem() {
-    try { localStorage.removeItem('theme'); } catch {}
-    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-    setDark(systemDark);
+    try { localStorage.removeItem('theme') } catch {}
+    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+    setDark(systemDark)
   }
 
   // DATA
@@ -159,25 +158,30 @@ export default function App() {
   function openEdit(row: Invoice) {
     setEditing(row)
     setFCustomer(row.customer)
-    setFEmail('') // original table payload didn’t include email; backend now includes it, but keeping this as before
+    setFEmail(row.customer_email || '')
     setFNumber(row.number)
     setFAmount(dollars(row.amount_cents))
     const today = new Date().toISOString().slice(0, 10)
     setFIssuedAt(today); setFDueAt(today)
-    setFStatus('open')
+    setFStatus(row.days_overdue > 0 ? 'overdue' : 'open')
     setModalOpen(true)
   }
 
-  async function onDelete(id: number) {
-    if (!confirm('Delete this invoice?')) return
+  /* -------- Delete: modal version (same style as Edit) -------- */
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteRow, setDeleteRow] = useState<Invoice | null>(null)
+  function openDelete(row: Invoice) { setDeleteRow(row); setDeleteOpen(true) }
+  async function confirmDelete() {
+    if (!deleteRow) return
     try {
-      const res = await fetch(`${API}/invoices/${id}`, { method: 'DELETE' })
+      const res = await fetch(`${API}/invoices/${deleteRow.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
+      setDeleteOpen(false); setDeleteRow(null)
       await fetchRows(page)
     } catch (err: any) { alert(err.message) }
   }
 
-  /* ================= Email: templates + compose (added) ================= */
+  /* ================= Email: templates + compose ================= */
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeRow, setComposeRow] = useState<Invoice | null>(null)
 
@@ -197,7 +201,7 @@ export default function App() {
   const [editingTpl, setEditingTpl] = useState<EmailTemplate | null>(null)
   const [tName, setTName] = useState('New Template')
   const [tCategory, setTCategory] = useState<'reminder' | 'followup' | 'promise'>('reminder')
-  const [tSubject, setTSubject] = useState('Reminder: Invoice {invoice_number} due {due_date}')
+  const [tSubject, setTSubject] = useState('Reminder: Invoice {invoice_number} Due {due_date}')
   const [tBody, setTBody] = useState(
 `Hi {customer_name},
 
@@ -244,7 +248,7 @@ Best,
         invoice_number: composeRow.number,
         amount_cents: composeRow.amount_cents,
         currency: 'USD',
-        due_date: '', // not included in list payload; optional
+        due_date: '', // list payload may not include due date
         days_overdue: composeRow.days_overdue,
         company_name: 'Invoisa',
         promised_date: promisedDate || undefined,
@@ -280,30 +284,17 @@ Best,
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-zinc-200/70 dark:border-zinc-800/70 backdrop-blur bg-white/70 dark:bg-zinc-950/70">
         <div className="mx-auto max-w-6xl px-3 sm:px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Invoisa</div>
-          </div>
-
+          <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Invoisa</div>
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
               onAuxClick={resetToSystem}
-              onContextMenu={(e) => { e.preventDefault(); resetToSystem(); }}
+              onContextMenu={(e) => { e.preventDefault(); resetToSystem() }}
               className="btn btn-outline"
               aria-pressed={dark}
               title={dark ? 'Dark (click = Light, right-click = System)' : 'Light (click = Dark, right-click = System)'}
             >
-              {dark ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
-                  <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657 6.343l1.414 1.414M4.929 4.929l1.414 1.414m0 10.314L4.93 18.07M19.071 4.929l-1.414 1.414" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
-                  <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" fill="none"/>
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-              {dark ? 'Light' : 'Dark'} mode
+              {dark ? 'Light Mode' : 'Dark Mode'}
             </button>
           </div>
         </div>
@@ -347,7 +338,7 @@ Best,
               <select className="select" value={sort} onChange={e => setSort(e.target.value as any)}>
                 <option value="impact_desc">Impact ↓</option>
                 <option value="amount_desc">Amount ↓</option>
-                <option value="days_desc">Days overdue ↓</option>
+                <option value="days_desc">Days Overdue ↓</option>
               </select>
             </label>
 
@@ -362,11 +353,11 @@ Best,
           </div>
         </section>
 
-        {/* Table (unchanged layout; only added “Compose email” button) */}
+        {/* Table (unchanged) */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="text-sm text-zinc-600 dark:text-zinc-300">
-              {total > 0 ? `Showing ${((page-1)*pageSize)+1}–${Math.min(page*pageSize,total)} of ${total}` : 'No results'}
+              {total > 0 ? `Showing ${((page-1)*pageSize)+1}–${Math.min(page*pageSize,total)} of ${total}` : 'No Results'}
             </div>
             {loading && <div className="text-sm text-zinc-500">Loading…</div>}
             {error && <div className="text-sm text-red-600">{error}</div>}
@@ -379,7 +370,7 @@ Best,
                   <th className="th px-4">Customer</th>
                   <th className="th px-4">Invoice #</th>
                   <th className="th px-4">Amount</th>
-                  <th className="th px-4">Days overdue</th>
+                  <th className="th px-4">Days Overdue</th>
                   <th className="th px-4">Score</th>
                   <th className="th px-4">Impact</th>
                   <th className="th px-4">Actions</th>
@@ -390,7 +381,7 @@ Best,
                   <tr key={r.id} className="tr-hover">
                     <td className="td px-4">
                       <div className="font-medium">{r.customer}</div>
-                      <div className="text-xs text-zinc-500 mt-0.5">{r.days_overdue > 0 ? 'overdue' : 'open'}</div>
+                      <div className="text-xs text-zinc-500 mt-0.5">{r.days_overdue > 0 ? 'Overdue' : 'Open'}</div>
                     </td>
                     <td className="td px-4">{r.number}</td>
                     <td className="td px-4">{fmtUSD.format(dollars(r.amount_cents))}</td>
@@ -399,10 +390,9 @@ Best,
                     <td className="td px-4">{fmtUSD.format(dollars(r.impact))}</td>
                     <td className="td px-4">
                       <div className="flex gap-2">
-                        {/* NEW: compose email (same button style family) */}
-                        <button onClick={() => openCompose(r)} className="btn btn-primary">Compose email</button>
+                        <button onClick={() => openCompose(r)} className="btn btn-primary">Compose Email</button>
                         <button onClick={() => openEdit(r)} className="btn btn-outline">Edit</button>
-                        <button onClick={() => onDelete(r.id)} className="btn btn-danger">Delete</button>
+                        <button onClick={() => openDelete(r)} className="btn btn-danger">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -418,7 +408,7 @@ Best,
 
                 {!loading && !error && rows.length === 0 && (
                   <tr>
-                    <td className="td px-4 text-zinc-500" colSpan={7}>No invoices match your filters.</td>
+                    <td className="td px-4 text-zinc-500" colSpan={7}>No Invoices Match Your Filters.</td>
                   </tr>
                 )}
               </tbody>
@@ -455,7 +445,7 @@ Best,
                   <input className="input" value={fCustomer} onChange={e => setFCustomer(e.target.value)} required/>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Customer Email (optional)</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Customer Email (Optional)</label>
                   <input className="input" type="email" value={fEmail} onChange={e => setFEmail(e.target.value)} />
                 </div>
               </div>
@@ -472,19 +462,19 @@ Best,
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Status</label>
                   <select className="select" value={fStatus} onChange={e => setFStatus(e.target.value as any)}>
-                    <option value="open">open</option>
-                    <option value="overdue">overdue</option>
+                    <option value="open">Open</option>
+                    <option value="overdue">Overdue</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Issued at</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Issued At</label>
                   <input className="input" type="date" value={fIssuedAt} onChange={e => setFIssuedAt(e.target.value)} required/>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Due at</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Due At</label>
                   <input className="input" type="date" value={fDueAt} onChange={e => setFDueAt(e.target.value)} required/>
                 </div>
               </div>
@@ -498,16 +488,46 @@ Best,
         </div>
       )}
 
-      {/* ======================= Compose Email (new) ======================= */}
+      {/* Delete Modal (NEW — same style as Edit) */}
+      {deleteOpen && deleteRow && (
+        <div className="modal-overlay" onClick={() => setDeleteOpen(false)}>
+          <div className="modal-card max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-2">Delete Invoice</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+              Are you sure you want to delete <span className="font-medium">{deleteRow.customer}</span> – <span className="font-mono">{deleteRow.number}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setDeleteOpen(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmDelete}>Delete Invoice</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compose Email Modal (REFINED) */}
       {composeOpen && composeRow && (
         <div className="modal-overlay" onClick={() => setComposeOpen(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Compose email</h2>
-              <button className="btn btn-ghost" onClick={() => setTplMgrOpen(true)}>Manage templates</button>
+          <div className="modal-card max-w-3xl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-lg font-semibold">Compose Email</h2>
+                <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-0.5">
+                  {composeRow.customer} • <span className="font-mono">{composeRow.number}</span> • {fmtUSD.format(dollars(composeRow.amount_cents))}
+                </div>
+              </div>
+              <button className="btn btn-ghost" onClick={() => setTplMgrOpen(true)}>Manage Templates</button>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-3 mt-3">
+            {/* Recipient */}
+            <div className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 mb-3 bg-white dark:bg-zinc-900">
+              <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">To</div>
+              <div className="text-sm">{composeRow.customer_email || <span className="text-zinc-500">No Email On File</span>}</div>
+            </div>
+
+            {/* Template Row */}
+            <div className="grid sm:grid-cols-2 gap-3">
               <label className="grid gap-1 text-sm">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Template</span>
                 <select className="select" value={selectedTplId} onChange={e => setSelectedTplId(e.target.value ? Number(e.target.value) : '' as any)}>
@@ -517,48 +537,52 @@ Best,
               </label>
               {tpls.find(t => t.id === selectedTplId)?.category === 'promise' && (
                 <label className="grid gap-1 text-sm">
-                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Promised date</span>
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Promised Date</span>
                   <input className="input" type="date" value={promisedDate} onChange={e => setPromisedDate(e.target.value)} />
                 </label>
               )}
             </div>
 
-            <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-              To: {composeRow.customer_email || '(no email on file)'}
-            </div>
-
+            {/* Subject / Body */}
             {renderErr && <div className="mt-2 text-sm text-red-600">{renderErr}</div>}
-
             <div className="mt-3 grid gap-2">
               <label className="grid gap-1 text-sm">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
-                <input className="input" value={renderSubject} onChange={e => setRenderSubject(e.target.value)} />
+                <input className="input" value={renderSubject} onChange={e => setRenderSubject(e.target.value)} placeholder="Email Subject"/>
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                <textarea className="textarea min-h-[200px]" value={renderBody} onChange={e => setRenderBody(e.target.value)} />
+                <textarea className="textarea min-h-[220px]" value={renderBody} onChange={e => setRenderBody(e.target.value)} placeholder="Email Body"/>
               </label>
             </div>
 
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderSubject)}>Copy subject</button>
-              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderBody)}>Copy body</button>
-              <a className="btn btn-primary"
-                 href={`mailto:${encodeURIComponent((composeRow.customer_email || ''))}?subject=${encodeURIComponent(renderSubject)}&body=${encodeURIComponent(renderBody)}`}>
-                Open in email client
+            {/* Footer actions */}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderSubject)}>Copy Subject</button>
+              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderBody)}>Copy Body</button>
+              <a
+                className="btn btn-primary"
+                href={`mailto:${encodeURIComponent((composeRow.customer_email || ''))}?subject=${encodeURIComponent(renderSubject)}&body=${encodeURIComponent(renderBody)}`}
+              >
+                Open In Email Client
               </a>
             </div>
           </div>
         </div>
       )}
 
-      {/* ======================= Templates Manager (new) ======================= */}
+      {/* Templates Manager (unchanged functionally; Title Case labels) */}
       {tplMgrOpen && (
         <div className="modal-overlay" onClick={() => setTplMgrOpen(false)}>
           <div className="modal-card max-w-3xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">Email Templates</h2>
-              <button className="btn btn-ghost" onClick={() => { setEditingTpl(null); setTName('New Template'); setTCategory('reminder'); setTSubject('Reminder: Invoice {invoice_number} due {due_date}'); setTBody(`Hi {customer_name},\n\nJust a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.\n\nBest,\n{company_name}`); setTDefault(false); }}>New</button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setEditingTpl(null); setTName('New Template'); setTCategory('reminder'); setTSubject('Reminder: Invoice {invoice_number} Due {due_date}'); setTBody(`Hi {customer_name},\n\nJust a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.\n\nBest,\n{company_name}`); setTDefault(false); }}
+              >
+                New Template
+              </button>
             </div>
 
             {tplErr && <div className="text-sm text-red-600 mb-2">{tplErr}</div>}
@@ -569,7 +593,7 @@ Best,
                 <div key={t.id} className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-medium">{t.name} <span className="text-xs text-zinc-500">({t.category})</span>{t.is_default ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">default</span> : null}</div>
+                      <div className="font-medium">{t.name} <span className="text-xs text-zinc-500">({t.category})</span>{t.is_default ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span> : null}</div>
                       <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1">Subject: {t.subject}</div>
                     </div>
                     <div className="flex gap-2">
@@ -580,7 +604,7 @@ Best,
                   <pre className="mt-2 text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">{t.body}</pre>
                 </div>
               ))}
-              {tpls.length === 0 && <div className="text-sm text-zinc-500">No templates yet.</div>}
+              {tpls.length === 0 && <div className="text-sm text-zinc-500">No Templates Yet.</div>}
             </div>
 
             {/* Create/Edit template */}
@@ -594,8 +618,8 @@ Best,
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Category</span>
                   <select className="select" value={tCategory} onChange={e => setTCategory(e.target.value as any)}>
                     <option value="reminder">Reminder</option>
-                    <option value="followup">Follow-up</option>
-                    <option value="promise">Promise-to-pay</option>
+                    <option value="followup">Follow-Up</option>
+                    <option value="promise">Promise-To-Pay</option>
                   </select>
                 </label>
               </div>
@@ -625,7 +649,7 @@ Best,
               </div>
 
               <div className="text-xs text-zinc-500 mt-3">
-                Available variables: {'{customer_name}'}, {'{customer_email}'}, {'{invoice_number}'}, {'{amount_usd}'}, {'{currency}'}, {'{due_date}'}, {'{days_overdue}'}, {'{company_name}'}, {'{today_date}'}, {'{promised_date}'}
+                Available Variables: {'{customer_name}'}, {'{customer_email}'}, {'{invoice_number}'}, {'{amount_usd}'}, {'{currency}'}, {'{due_date}'}, {'{days_overdue}'}, {'{company_name}'}, {'{today_date}'}, {'{promised_date}'}
               </div>
             </form>
           </div>
