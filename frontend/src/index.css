@@ -1,4 +1,3 @@
-/*! tailwindcss v4.1.13 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -971,5 +970,19 @@
       --tw-duration: initial;
       --tw-tracking: initial;
     }
+  }
+}
+
+@layer utilities {
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.2);
+  }
+  .dark input[type="date"] {
+    color-scheme: dark;
+  }
+  .dark .modal-card .input,
+  .dark .modal-card .textarea,
+  .dark .modal-card .select {
+    color: #e5e7eb; /* zinc-200 */
   }
 }
