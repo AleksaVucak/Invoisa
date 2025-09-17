@@ -1,0 +1,25 @@
+{
+  "name": "invoisa-frontend",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:css": "tailwindcss -i ./src/tw.css -o ./src/index.css --watch",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.13",
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.3.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.5.2",
+    "vite": "^7.1.5"
+  }
+}

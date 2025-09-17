@@ -1,0 +1,4 @@
+customer_name,customer_email,number,amount_cents,currency,issued_at,due_at,status
+Acme Co,ap@acme.test,INV-3001,210000,USD,2025-06-01T00:00:00Z,2025-07-01T00:00:00Z,overdue
+Globex,ar@globex.test,INV-3002,75000,USD,2025-08-01T00:00:00Z,2025-08-25T00:00:00Z,open
+Umbrella,ap@umbrella.test,INV-3003,129000,USD,2025-07-15T00:00:00Z,2025-08-15T00:00:00Z,overdue
