@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react'
 
 type Invoice = {
@@ -17,28 +16,65 @@ const cents = (d: number) => Math.round(d * 100)
 const dollars = (c: number) => c / 100
 
 export default function App() {
-  const [dark, setDark] = useState<boolean>(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches)
-  useEffect(() => {
-    const root = document.documentElement
-    if (dark) root.classList.add('dark'); else root.classList.remove('dark')
-  }, [dark])
+  // THEME: saved preference > system; persist & follow system when not set
+  const [dark, setDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark') return true;
+      if (saved === 'light') return false;
+    } catch {}
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
+  }, [dark]);
+
+  useEffect(() => {
+    const mql = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mql) return;
+    const handler = (e: MediaQueryListEvent) => {
+      const saved = localStorage.getItem('theme');
+      if (!saved) setDark(e.matches);
+    };
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  function toggleTheme() {
+    setDark(prev => {
+      const next = !prev;
+      try { localStorage.setItem('theme', next ? 'dark' : 'light'); } catch {}
+      return next;
+    });
+  }
+  function resetToSystem() {
+    try { localStorage.removeItem('theme'); } catch {}
+    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    setDark(systemDark);
+  }
+
+  // DATA
   const [rows, setRows] = useState<Invoice[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
+  // Filters
   const [status, setStatus] = useState<'all' | 'open' | 'overdue'>('all')
   const [aging, setAging] = useState<'any' | '30+' | '60+' | '90+'>('any')
   const [minAmt, setMinAmt] = useState<number | ''>('')
   const [maxAmt, setMaxAmt] = useState<number | ''>('')
   const [sort, setSort] = useState<'impact_desc' | 'amount_desc' | 'days_desc'>('impact_desc')
 
+  // Pagination
   const [page, setPage] = useState(1)
   const pageSize = 10
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
 
+  // Modal + form
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Invoice | null>(null)
   const [fCustomer, setFCustomer] = useState('')
@@ -59,7 +95,7 @@ export default function App() {
     try {
       const params = new URLSearchParams()
       if (status !== 'all') params.set('status', status)
-      if (aging !== 'any') params.set('aging_min', aging.replace('+',''))
+      if (aging !== 'any') params.set('aging_min', aging.replace('+', ''))
       if (minAmt !== '') params.set('min_amount', String(cents(Number(minAmt))))
       if (maxAmt !== '') params.set('max_amount', String(cents(Number(maxAmt))))
       params.set('sort', sort)
@@ -72,10 +108,11 @@ export default function App() {
       const totalHeader = res.headers.get('X-Total-Count')
       setTotal(totalHeader ? Number(totalHeader) : 0)
 
+      // Keep filters in URL (useful on refresh)
       const url = new URL(window.location.href)
       url.search = params.toString()
       window.history.replaceState(null, '', url.toString())
-    } catch (e:any) {
+    } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
@@ -95,7 +132,7 @@ export default function App() {
       if (!res.ok) throw new Error(await res.text())
       await fetchRows(1); setPage(1)
       alert('CSV imported successfully')
-    } catch (err:any) {
+    } catch (err: any) {
       alert('Import failed: ' + err.message)
     } finally {
       setUploading(false)
@@ -110,7 +147,7 @@ export default function App() {
     setFEmail('')
     setFNumber(row.number)
     setFAmount(dollars(row.amount_cents))
-    const today = new Date().toISOString().slice(0,10)
+    const today = new Date().toISOString().slice(0, 10)
     setFIssuedAt(today); setFDueAt(today)
     setFStatus('open')
     setModalOpen(true)
@@ -137,7 +174,7 @@ export default function App() {
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) throw new Error(await res.text())
       setModalOpen(false); resetForm(); await fetchRows(page)
-    } catch (err:any) {
+    } catch (err: any) {
       alert(err.message)
     }
   }
@@ -148,13 +185,7 @@ export default function App() {
       const res = await fetch(`${API}/invoices/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       await fetchRows(page)
-    } catch (err:any) { alert(err.message) }
-  }
-
-  const statusBadge = (s: 'open'|'overdue'|'paid') => {
-    if (s === 'paid') return <span className="badge badge-green">paid</span>
-    if (s === 'overdue') return <span className="badge badge-amber">overdue</span>
-    return <span className="badge badge-sky">open</span>
+    } catch (err: any) { alert(err.message) }
   }
 
   return (
@@ -165,8 +196,28 @@ export default function App() {
             <div className="h-8 w-8 rounded-xl bg-brand-600 text-white grid place-items-center font-bold">I</div>
             <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Invoisa</div>
           </div>
+
           <div className="flex items-center gap-2">
-            <button onClick={() => setDark(d => !d)} className="btn btn-outline" title="Toggle theme">
+            <button
+              onClick={toggleTheme}
+              onAuxClick={resetToSystem}                          // middle click resets to system
+              onContextMenu={(e) => { e.preventDefault(); resetToSystem(); }} // right click resets to system
+              className="btn btn-outline"
+              aria-pressed={dark}
+              title={dark ? 'Dark (click = Light, right-click = System)' : 'Light (click = Dark, right-click = System)'}
+            >
+              {dark ? (
+                // Sun icon
+                <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
+                  <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657 6.343 1.414 1.414M4.929 4.929 6.343 6.343m0 11.314-1.414 1.414m13.142-13.142-1.414 1.414" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                  <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" fill="none"/>
+                </svg>
+              ) : (
+                // Moon icon
+                <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
               {dark ? 'Light' : 'Dark'} mode
             </button>
           </div>
@@ -174,7 +225,8 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-6xl px-3 sm:px-4 py-6">
-        <section className="card p-4 sm:p-5 mb-5">
+        {/* Filters */}
+        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 sm:p-5 mb-5">
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Status</label>
@@ -227,7 +279,8 @@ export default function App() {
           </div>
         </section>
 
-        <section className="card overflow-hidden">
+        {/* Table */}
+        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="text-sm text-zinc-600 dark:text-zinc-300">
               {total > 0 ? `Showing ${((page-1)*pageSize)+1}–${Math.min(page*pageSize,total)} of ${total}` : 'No results'}
@@ -237,7 +290,7 @@ export default function App() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="table">
+            <table className="table w-full border-collapse">
               <thead className="bg-zinc-50 dark:bg-zinc-900">
                 <tr>
                   <th className="th px-4">Customer</th>
@@ -269,6 +322,7 @@ export default function App() {
                     </td>
                   </tr>
                 ))}
+
                 {loading && (
                   <tr>
                     <td className="td px-4" colSpan={7}>
@@ -276,6 +330,7 @@ export default function App() {
                     </td>
                   </tr>
                 )}
+
                 {!loading && !error && rows.length === 0 && (
                   <tr>
                     <td className="td px-4 text-zinc-500" colSpan={7}>No invoices match your filters.</td>
@@ -289,13 +344,13 @@ export default function App() {
             <div className="text-sm text-zinc-600 dark:text-zinc-300">Page {page} / {totalPages}</div>
             <div className="flex items-center gap-2">
               <button
-                disabled={page<=1}
-                onClick={() => { const p = Math.max(1, page-1); setPage(p); fetchRows(p) }}
+                disabled={page <= 1}
+                onClick={() => { const p = Math.max(1, page - 1); setPage(p); fetchRows(p) }}
                 className="btn btn-outline disabled:opacity-50"
               >Prev</button>
               <button
-                disabled={page>=totalPages}
-                onClick={() => { const p = Math.min(totalPages, page+1); setPage(p); fetchRows(p) }}
+                disabled={page >= totalPages}
+                onClick={() => { const p = Math.min(totalPages, page + 1); setPage(p); fetchRows(p) }}
                 className="btn btn-outline disabled:opacity-50"
               >Next</button>
             </div>
@@ -303,6 +358,7 @@ export default function App() {
         </section>
       </main>
 
+      {/* Modal */}
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
