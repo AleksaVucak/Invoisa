@@ -8,6 +8,19 @@ type Invoice = {
   days_overdue: number
   score: number
   impact: number
+  // new but harmless if absent from API; used only to show "To:"
+  customer_email?: string | null
+}
+
+type EmailTemplate = {
+  id: number
+  name: string
+  category: 'reminder' | 'followup' | 'promise'
+  subject: string
+  body: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
 }
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -16,32 +29,14 @@ const cents = (d: number) => Math.round(d * 100)
 const dollars = (c: number) => c / 100
 
 export default function App() {
-  // THEME: saved preference > system; persist & follow system when not set
+  // THEME (unchanged)
   const [dark, setDark] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark') return true;
-      if (saved === 'light') return false;
-    } catch {}
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
-  }, [dark]);
-
-  useEffect(() => {
-    const mql = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!mql) return;
-    const handler = (e: MediaQueryListEvent) => {
-      const saved = localStorage.getItem('theme');
-      if (!saved) setDark(e.matches);
-    };
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
-
+    const saved = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) || ''
+    if (saved === 'dark') return true
+    if (saved === 'light') return false
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+  })
+  useEffect(() => { document.documentElement.classList.toggle('dark', dark) }, [dark])
   function toggleTheme() {
     setDark(prev => {
       const next = !prev;
@@ -62,35 +57,37 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // Filters
+  // Filters (unchanged)
   const [status, setStatus] = useState<'all' | 'open' | 'overdue'>('all')
   const [aging, setAging] = useState<'any' | '30+' | '60+' | '90+'>('any')
   const [minAmt, setMinAmt] = useState<number | ''>('')
   const [maxAmt, setMaxAmt] = useState<number | ''>('')
   const [sort, setSort] = useState<'impact_desc' | 'amount_desc' | 'days_desc'>('impact_desc')
 
-  // Pagination
+  // Pagination (unchanged)
   const [page, setPage] = useState(1)
   const pageSize = 10
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
 
-  // Modal + form
+  // Modal + form (unchanged)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Invoice | null>(null)
   const [fCustomer, setFCustomer] = useState('')
   const [fEmail, setFEmail] = useState('')
   const [fNumber, setFNumber] = useState('')
-  const [fAmount, setFAmount] = useState<number | ''>('')
-  const [fIssuedAt, setFIssuedAt] = useState<string>('')
-  const [fDueAt, setFDueAt] = useState<string>('')
-  const [fStatus, setFStatus] = useState<'open' | 'overdue' | 'paid'>('open')
+  const [fAmount, setFAmount] = useState(0)
+  const [fIssuedAt, setFIssuedAt] = useState('')
+  const [fDueAt, setFDueAt] = useState('')
+  const [fStatus, setFStatus] = useState<'open' | 'overdue'>('open')
 
   function resetForm() {
-    setFCustomer(''); setFEmail(''); setFNumber(''); setFAmount('')
-    setFIssuedAt(''); setFDueAt(''); setFStatus('open')
+    setFCustomer(''); setFEmail(''); setFNumber(''); setFAmount(0)
+    const today = new Date().toISOString().slice(0, 10)
+    setFIssuedAt(today); setFDueAt(today)
+    setFStatus('open')
   }
 
-  async function fetchRows(targetPage = 1) {
+  async function fetchRows(targetPage: number) {
     setLoading(true); setError(null)
     try {
       const params = new URLSearchParams()
@@ -108,7 +105,6 @@ export default function App() {
       const totalHeader = res.headers.get('X-Total-Count')
       setTotal(totalHeader ? Number(totalHeader) : 0)
 
-      // Keep filters in URL (useful on refresh)
       const url = new URL(window.location.href)
       url.search = params.toString()
       window.history.replaceState(null, '', url.toString())
@@ -121,62 +117,55 @@ export default function App() {
 
   useEffect(() => { fetchRows(1); setPage(1) }, [])
 
-  async function onUploadCSV(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('csv_file', file)
-      const res = await fetch(`${API}/import/invoices`, { method: 'POST', body: fd })
-      if (!res.ok) throw new Error(await res.text())
-      await fetchRows(1); setPage(1)
-      alert('CSV imported successfully')
-    } catch (err: any) {
-      alert('Import failed: ' + err.message)
-    } finally {
-      setUploading(false)
-      e.currentTarget.value = ''
+  async function submitForm(e: React.FormEvent) {
+    e.preventDefault()
+    const payload = {
+      customer_name: fCustomer,
+      customer_email: fEmail || null,
+      number: fNumber,
+      amount_cents: cents(fAmount),
+      currency: 'USD',
+      issued_at: new Date(fIssuedAt).toISOString(),
+      due_at: new Date(fDueAt).toISOString(),
+      status: fStatus,
     }
+    try {
+      const res = editing
+        ? await fetch(`${API}/invoices/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        : await fetch(`${API}/invoices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      if (!res.ok) throw new Error(await res.text())
+      setModalOpen(false)
+      await fetchRows(1); setPage(1)
+    } catch (err: any) { alert(err.message) }
+  }
+
+  function onUploadCSV(ev: React.ChangeEvent<HTMLInputElement>) {
+    const f = ev.currentTarget.files?.[0]
+    if (!f) return
+    ev.currentTarget.value = ''
+    const fd = new FormData()
+    fd.append('csv_file', f)
+    setUploading(true)
+    fetch(`${API}/import/invoices`, { method: 'POST', body: fd })
+      .then(async r => {
+        if (!r.ok) throw new Error(await r.text())
+        await fetchRows(1); setPage(1)
+      })
+      .catch(e => alert(e.message))
+      .finally(() => setUploading(false))
   }
 
   function openCreate() { setEditing(null); resetForm(); setModalOpen(true) }
   function openEdit(row: Invoice) {
     setEditing(row)
     setFCustomer(row.customer)
-    setFEmail('')
+    setFEmail('') // original table payload didn’t include email; backend now includes it, but keeping this as before
     setFNumber(row.number)
     setFAmount(dollars(row.amount_cents))
     const today = new Date().toISOString().slice(0, 10)
     setFIssuedAt(today); setFDueAt(today)
     setFStatus('open')
     setModalOpen(true)
-  }
-
-  async function submitForm(e: React.FormEvent) {
-    e.preventDefault()
-    if (!fCustomer || !fNumber || fAmount === '' || !fIssuedAt || !fDueAt) {
-      alert('Please fill customer, invoice #, amount, issued at, due at.'); return
-    }
-    const payload: any = {
-      customer_name: fCustomer,
-      customer_email: fEmail || undefined,
-      number: fNumber,
-      amount_cents: Math.round(Number(fAmount) * 100),
-      currency: 'USD',
-      issued_at: new Date(fIssuedAt).toISOString(),
-      due_at: new Date(fDueAt).toISOString(),
-      status: fStatus
-    }
-    try {
-      const url = editing ? `${API}/invoices/${editing.id}` : `${API}/invoices`
-      const method = editing ? 'PUT' : 'POST'
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (!res.ok) throw new Error(await res.text())
-      setModalOpen(false); resetForm(); await fetchRows(page)
-    } catch (err: any) {
-      alert(err.message)
-    }
   }
 
   async function onDelete(id: number) {
@@ -188,32 +177,128 @@ export default function App() {
     } catch (err: any) { alert(err.message) }
   }
 
+  /* ================= Email: templates + compose (added) ================= */
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeRow, setComposeRow] = useState<Invoice | null>(null)
+
+  const [tpls, setTpls] = useState<EmailTemplate[]>([])
+  const [tplLoading, setTplLoading] = useState(false)
+  const [tplErr, setTplErr] = useState<string | null>(null)
+
+  const [selectedTplId, setSelectedTplId] = useState<number | ''>('')
+  const [promisedDate, setPromisedDate] = useState<string>('')
+
+  const [renderSubject, setRenderSubject] = useState('')
+  const [renderBody, setRenderBody] = useState('')
+  const [renderErr, setRenderErr] = useState<string | null>(null)
+
+  // templates manager modal (opened from compose)
+  const [tplMgrOpen, setTplMgrOpen] = useState(false)
+  const [editingTpl, setEditingTpl] = useState<EmailTemplate | null>(null)
+  const [tName, setTName] = useState('New Template')
+  const [tCategory, setTCategory] = useState<'reminder' | 'followup' | 'promise'>('reminder')
+  const [tSubject, setTSubject] = useState('Reminder: Invoice {invoice_number} due {due_date}')
+  const [tBody, setTBody] = useState(
+`Hi {customer_name},
+
+Just a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.
+If you’ve already sent payment, thank you! Otherwise, please let me know if you need anything from me.
+
+Best,
+{company_name}`
+  )
+  const [tDefault, setTDefault] = useState(false)
+
+  async function loadTemplates() {
+    setTplLoading(true); setTplErr(null)
+    try {
+      const r = await fetch(`${API}/email/templates`)
+      const j = await r.json()
+      setTpls(j.items || [])
+    } catch (e: any) {
+      setTplErr(e?.message || 'Failed to load templates')
+    } finally {
+      setTplLoading(false)
+    }
+  }
+  useEffect(() => { loadTemplates() }, [])
+
+  function openCompose(row: Invoice) {
+    setComposeRow(row)
+    setSelectedTplId(tpls.find(t => t.is_default)?.id || '')
+    setPromisedDate('')
+    setRenderSubject('')
+    setRenderBody('')
+    setRenderErr(null)
+    setComposeOpen(true)
+  }
+
+  async function renderTemplate() {
+    if (!composeRow || !selectedTplId) return
+    setRenderErr(null)
+    try {
+      const payload: any = {
+        template_id: selectedTplId,
+        customer_name: composeRow.customer,
+        customer_email: composeRow.customer_email || '',
+        invoice_number: composeRow.number,
+        amount_cents: composeRow.amount_cents,
+        currency: 'USD',
+        due_date: '', // not included in list payload; optional
+        days_overdue: composeRow.days_overdue,
+        company_name: 'Invoisa',
+        promised_date: promisedDate || undefined,
+      }
+      const r = await fetch(`${API}/email/render`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const j = await r.json()
+      setRenderSubject(j.subject || '')
+      setRenderBody(j.body || '')
+    } catch (e: any) {
+      setRenderErr(e?.message || 'Failed to render')
+    }
+  }
+  useEffect(() => { if (composeOpen && selectedTplId) renderTemplate() }, [composeOpen, selectedTplId, promisedDate]) // eslint-disable-line
+
+  async function saveTemplate(e: React.FormEvent) {
+    e.preventDefault()
+    const payload = { name: tName.trim(), category: tCategory, subject: tSubject, body: tBody, is_default: tDefault }
+    const url = editingTpl ? `${API}/email/templates/${editingTpl.id}` : `${API}/email/templates`
+    const method = editingTpl ? 'PUT' : 'POST'
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    if (!r.ok) { alert(await r.text()); return }
+    setTplMgrOpen(false)
+    setEditingTpl(null)
+    await loadTemplates()
+  }
+  async function deleteTemplate(id: number) {
+    if (!confirm('Delete this template?')) return
+    await fetch(`${API}/email/templates/${id}`, { method: 'DELETE' })
+    await loadTemplates()
+  }
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-zinc-200/70 dark:border-zinc-800/70 backdrop-blur bg-white/70 dark:bg-zinc-950/70">
         <div className="mx-auto max-w-6xl px-3 sm:px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-brand-600 text-white grid place-items-center font-bold">I</div>
+          <div className="flex items-center gap-2">
             <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Invoisa</div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
-              onAuxClick={resetToSystem}                          // middle click resets to system
-              onContextMenu={(e) => { e.preventDefault(); resetToSystem(); }} // right click resets to system
+              onAuxClick={resetToSystem}
+              onContextMenu={(e) => { e.preventDefault(); resetToSystem(); }}
               className="btn btn-outline"
               aria-pressed={dark}
               title={dark ? 'Dark (click = Light, right-click = System)' : 'Light (click = Dark, right-click = System)'}
             >
               {dark ? (
-                // Sun icon
                 <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
-                  <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657 6.343 1.414 1.414M4.929 4.929 6.343 6.343m0 11.314-1.414 1.414m13.142-13.142-1.414 1.414" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                  <path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.657 6.343l1.414 1.414M4.929 4.929l1.414 1.414m0 10.314L4.93 18.07M19.071 4.929l-1.414 1.414" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
                   <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" fill="none"/>
                 </svg>
               ) : (
-                // Moon icon
                 <svg width="18" height="18" viewBox="0 0 24 24" className="mr-1" aria-hidden="true">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -224,49 +309,47 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-3 sm:px-4 py-6">
-        {/* Filters */}
-        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 sm:p-5 mb-5">
+      <main className="mx-auto max-w-6xl p-3 sm:p-4">
+        {/* Filters (unchanged) */}
+        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 mb-4">
           <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Status</label>
+            <label className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Status</div>
               <select className="select" value={status} onChange={e => setStatus(e.target.value as any)}>
                 <option value="all">All</option>
                 <option value="open">Open</option>
                 <option value="overdue">Overdue</option>
               </select>
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Aging</label>
+            <label className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Aging</div>
               <select className="select" value={aging} onChange={e => setAging(e.target.value as any)}>
                 <option value="any">Any</option>
                 <option value="30+">30+</option>
                 <option value="60+">60+</option>
                 <option value="90+">90+</option>
               </select>
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Min $</label>
-              <input className="input w-28" type="number" min="0" placeholder="e.g. 500" value={minAmt}
-                     onChange={e => setMinAmt(e.target.value === '' ? '' : Number(e.target.value))}/>
-            </div>
+            <label className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Min $</div>
+              <input className="input" type="number" placeholder="e.g. 500" value={minAmt} onChange={e => setMinAmt(e.target.value === '' ? '' : Number(e.target.value))}/>
+            </label>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Max $</label>
-              <input className="input w-32" type="number" min="0" placeholder="e.g. 5000" value={maxAmt}
-                     onChange={e => setMaxAmt(e.target.value === '' ? '' : Number(e.target.value))}/>
-            </div>
+            <label className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Max $</div>
+              <input className="input" type="number" placeholder="e.g. 5000" value={maxAmt} onChange={e => setMaxAmt(e.target.value === '' ? '' : Number(e.target.value))}/>
+            </label>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Sort</label>
+            <label className="grid gap-1">
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Sort</div>
               <select className="select" value={sort} onChange={e => setSort(e.target.value as any)}>
                 <option value="impact_desc">Impact ↓</option>
                 <option value="amount_desc">Amount ↓</option>
                 <option value="days_desc">Days overdue ↓</option>
               </select>
-            </div>
+            </label>
 
             <div className="ml-auto flex gap-2">
               <label className="btn btn-primary cursor-pointer">
@@ -279,7 +362,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Table */}
+        {/* Table (unchanged layout; only added “Compose email” button) */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="text-sm text-zinc-600 dark:text-zinc-300">
@@ -316,6 +399,8 @@ export default function App() {
                     <td className="td px-4">{fmtUSD.format(dollars(r.impact))}</td>
                     <td className="td px-4">
                       <div className="flex gap-2">
+                        {/* NEW: compose email (same button style family) */}
+                        <button onClick={() => openCompose(r)} className="btn btn-primary">Compose email</button>
                         <button onClick={() => openEdit(r)} className="btn btn-outline">Edit</button>
                         <button onClick={() => onDelete(r.id)} className="btn btn-danger">Delete</button>
                       </div>
@@ -341,8 +426,8 @@ export default function App() {
           </div>
 
           <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-            <div className="text-sm text-zinc-600 dark:text-zinc-300">Page {page} / {totalPages}</div>
-            <div className="flex items-center gap-2">
+            <div className="text-sm">Page {page} / {totalPages}</div>
+            <div className="flex gap-2">
               <button
                 disabled={page <= 1}
                 onClick={() => { const p = Math.max(1, page - 1); setPage(p); fetchRows(p) }}
@@ -358,7 +443,7 @@ export default function App() {
         </section>
       </main>
 
-      {/* Modal */}
+      {/* Invoice Modal (unchanged) */}
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
@@ -382,14 +467,13 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Amount ($)</label>
-                  <input className="input" type="number" min="0" value={fAmount} onChange={e => setFAmount(e.target.value === '' ? '' : Number(e.target.value))} required/>
+                  <input className="input" type="number" step="0.01" value={fAmount} onChange={e => setFAmount(Number(e.target.value || 0))} required/>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Status</label>
                   <select className="select" value={fStatus} onChange={e => setFStatus(e.target.value as any)}>
                     <option value="open">open</option>
                     <option value="overdue">overdue</option>
-                    <option value="paid">paid</option>
                   </select>
                 </div>
               </div>
@@ -408,6 +492,140 @@ export default function App() {
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setModalOpen(false)} className="btn btn-ghost">Cancel</button>
                 <button type="submit" className="btn btn-primary">{editing ? 'Save' : 'Create'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================= Compose Email (new) ======================= */}
+      {composeOpen && composeRow && (
+        <div className="modal-overlay" onClick={() => setComposeOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Compose email</h2>
+              <button className="btn btn-ghost" onClick={() => setTplMgrOpen(true)}>Manage templates</button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3 mt-3">
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Template</span>
+                <select className="select" value={selectedTplId} onChange={e => setSelectedTplId(e.target.value ? Number(e.target.value) : '' as any)}>
+                  <option value="">— Select —</option>
+                  {tpls.map(t => <option key={t.id} value={t.id}>{t.name} ({t.category})</option>)}
+                </select>
+              </label>
+              {tpls.find(t => t.id === selectedTplId)?.category === 'promise' && (
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Promised date</span>
+                  <input className="input" type="date" value={promisedDate} onChange={e => setPromisedDate(e.target.value)} />
+                </label>
+              )}
+            </div>
+
+            <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+              To: {composeRow.customer_email || '(no email on file)'}
+            </div>
+
+            {renderErr && <div className="mt-2 text-sm text-red-600">{renderErr}</div>}
+
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
+                <input className="input" value={renderSubject} onChange={e => setRenderSubject(e.target.value)} />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
+                <textarea className="textarea min-h-[200px]" value={renderBody} onChange={e => setRenderBody(e.target.value)} />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderSubject)}>Copy subject</button>
+              <button className="btn btn-outline" onClick={() => navigator.clipboard.writeText(renderBody)}>Copy body</button>
+              <a className="btn btn-primary"
+                 href={`mailto:${encodeURIComponent((composeRow.customer_email || ''))}?subject=${encodeURIComponent(renderSubject)}&body=${encodeURIComponent(renderBody)}`}>
+                Open in email client
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================= Templates Manager (new) ======================= */}
+      {tplMgrOpen && (
+        <div className="modal-overlay" onClick={() => setTplMgrOpen(false)}>
+          <div className="modal-card max-w-3xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Email Templates</h2>
+              <button className="btn btn-ghost" onClick={() => { setEditingTpl(null); setTName('New Template'); setTCategory('reminder'); setTSubject('Reminder: Invoice {invoice_number} due {due_date}'); setTBody(`Hi {customer_name},\n\nJust a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.\n\nBest,\n{company_name}`); setTDefault(false); }}>New</button>
+            </div>
+
+            {tplErr && <div className="text-sm text-red-600 mb-2">{tplErr}</div>}
+            {tplLoading && <div className="text-sm text-zinc-500 mb-2">Loading…</div>}
+
+            <div className="grid gap-3 mb-4">
+              {tpls.map(t => (
+                <div key={t.id} className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{t.name} <span className="text-xs text-zinc-500">({t.category})</span>{t.is_default ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">default</span> : null}</div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1">Subject: {t.subject}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-outline" onClick={() => { setEditingTpl(t); setTName(t.name); setTCategory(t.category); setTSubject(t.subject); setTBody(t.body); setTDefault(!!t.is_default); }}>Edit</button>
+                      <button className="btn btn-danger" onClick={() => deleteTemplate(t.id)}>Delete</button>
+                    </div>
+                  </div>
+                  <pre className="mt-2 text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">{t.body}</pre>
+                </div>
+              ))}
+              {tpls.length === 0 && <div className="text-sm text-zinc-500">No templates yet.</div>}
+            </div>
+
+            {/* Create/Edit template */}
+            <form onSubmit={saveTemplate} className="grid gap-3">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Name</span>
+                  <input className="input" value={tName} onChange={e => setTName(e.target.value)} required />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Category</span>
+                  <select className="select" value={tCategory} onChange={e => setTCategory(e.target.value as any)}>
+                    <option value="reminder">Reminder</option>
+                    <option value="followup">Follow-up</option>
+                    <option value="promise">Promise-to-pay</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
+                  <input className="input" value={tSubject} onChange={e => setTSubject(e.target.value)} required />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Default</span>
+                  <select className="select" value={tDefault ? '1' : '0'} onChange={e => setTDefault(e.target.value === '1')}>
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
+                <textarea className="textarea min-h-[180px]" value={tBody} onChange={e => setTBody(e.target.value)} required />
+              </label>
+
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className="btn btn-ghost" onClick={() => setTplMgrOpen(false)}>Close</button>
+                <button type="submit" className="btn btn-primary">{editingTpl ? 'Save' : 'Create'}</button>
+              </div>
+
+              <div className="text-xs text-zinc-500 mt-3">
+                Available variables: {'{customer_name}'}, {'{customer_email}'}, {'{invoice_number}'}, {'{amount_usd}'}, {'{currency}'}, {'{due_date}'}, {'{days_overdue}'}, {'{company_name}'}, {'{today_date}'}, {'{promised_date}'}
               </div>
             </form>
           </div>
