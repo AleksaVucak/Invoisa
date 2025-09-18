@@ -28,6 +28,22 @@ const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'US
 const cents = (d: number) => Math.round(d * 100)
 const dollars = (c: number) => c / 100
 
+function SunIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M12 18.5a1 1 0 011 1V21a1 1 0 11-2 0v-1.5a1 1 0 011-1zm0-14a1 1 0 011 1V7a1 1 0 11-2 0V5.5a1 1 0 011-1zM4.5 11a1 1 0 100 2H6a1 1 0 100-2H4.5zm13 0a1 1 0 100 2H19a1 1 0 100-2h-1.5zM6.343 6.343a1 1 0 011.414 0l1.06 1.06a1 1 0 11-1.414 1.415l-1.06-1.06a1 1 0 010-1.415zm9.82 9.82a1 1 0 011.414 0l1.06 1.06a1 1 0 11-1.414 1.415l-1.06-1.06a1 1 0 010-1.415zM6.343 17.657a1 1 0 010-1.414l1.06-1.06a1 1 0 011.415 1.414l-1.06 1.06a1 1 0 01-1.415 0zm9.82-9.82a1 1 0 010-1.414l1.06-1.06a1 1 0 111.415 1.414l-1.06 1.06a1 1 0 01-1.415 0zM16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  )
+}
+
+function MoonIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+    </svg>
+  )
+}
+
 export default function App() {
   /* ================= THEME ================= */
   const [dark, setDark] = useState<boolean>(() => {
@@ -340,7 +356,17 @@ Best,
               aria-pressed={dark}
               title={dark ? 'Dark (click = Light, right-click = System)' : 'Light (click = Dark, right-click = System)'}
             >
-              {dark ? 'Light Mode' : 'Dark Mode'}
+              {dark ? (
+                <>
+                  <SunIcon style={{ width: 16, height: 16 }} />
+                  <span>Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <MoonIcon style={{ width: 16, height: 16 }} />
+                  <span>Dark Mode</span>
+                </>
+              )}
             </button>
           </div>
         </div>
