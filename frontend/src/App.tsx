@@ -349,6 +349,8 @@ Best,
   }
   const bodyRef = useRef<HTMLTextAreaElement | null>(null)
   useAutosizeTextArea(bodyRef, renderBody)
+  const tBodyRef = useRef<HTMLTextAreaElement | null>(null)
+  useAutosizeTextArea(tBodyRef, tBody)
 
   /* ================= RENDER ================= */
   return (
@@ -765,8 +767,8 @@ Best,
               <h2 className="text-lg font-semibold dark:text-zinc-100">Email Templates</h2>
               <div className="flex items-center gap-2">
                 <input
-                  className="input w-32 sm:w-64"
-                  placeholder="Search templates…"
+                  className="input w-56 sm:w-80"
+                  placeholder="Search Templates.."
                   value={tplQuery}
                   onChange={e => setTplQuery(e.target.value)}
                 />
@@ -800,9 +802,9 @@ Best,
                 {filteredTpls.map(t => (
                   <div
                     key={t.id}
-                    className="rounded-xl p-3 mb-3 last:mb-0 ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900"
+                    className="rounded-xl p-4 mb-3 last:mb-0 ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900"
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-medium dark:text-zinc-100 truncate">
                           {t.name}
@@ -810,14 +812,14 @@ Best,
                             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span>
                           )}
                         </div>
-                        <div className="text-xs text-zinc-500 mt-0.5">
-                          {t.category === 'reminder' && <span className="badge badge-sky mr-1">Reminder</span>}
-                          {t.category === 'followup' && <span className="badge badge-amber mr-1">Follow-Up</span>}
-                          {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
-                        </div>
                         <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1 truncate">
                           Subject: {t.subject}
                         </div>
+                      <div className="mt-1">
+                        {t.category === 'reminder' && <span className="badge badge-sky mr-1">Reminder</span>}
+                        {t.category === 'followup' && <span className="badge badge-amber mr-1">Follow-Up</span>}
+                        {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
+                      </div>
                       </div>
                       <div className="flex-shrink-0 flex gap-2">
                         <button
@@ -870,7 +872,7 @@ Best,
 
                 <label className="grid gap-1 text-sm" style={{ marginBottom: '0.5rem' }}>
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                  <textarea className="textarea min-h-[220px] dark:text-zinc-100" value={tBody} onChange={e => setTBody(e.target.value)} required />
+                  <textarea ref={tBodyRef} className="textarea dark:text-zinc-100" style={{ overflow: 'hidden', resize: 'none', minHeight: '260px' }} value={tBody} onChange={e => setTBody(e.target.value)} required />
                 </label>
 
                 <div className="mt-2 flex justify-end gap-2">
