@@ -973,16 +973,48 @@
   }
 }
 
-@layer utilities {
-  .dark input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) brightness(1.2);
+/* ===== Fix calendar/time icons + dark UI for date inputs ===== */
+@layer base {
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .dark input[type="month"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.2) contrast(1.05);
+    opacity: 1;
   }
-  .dark input[type="date"] {
+
+  .dark input[type="date"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"],
+  .dark input[type="time"] {
     color-scheme: dark;
   }
-  .dark .modal-card .input,
-  .dark .modal-card .textarea,
-  .dark .modal-card .select {
-    color: #e5e7eb; /* zinc-200 */
+}
+
+@layer utilities {
+  /* White calendar icons in dark mode — hide UA icon, draw our own */
+  .dark .input[type="date"],
+  .dark .input[type="datetime-local"],
+  .dark .input[type="month"],
+  .dark .input[type="time"] {
+    /* tell the browser the control is dark-themed */
+    color-scheme: dark;
+
+    /* our own white calendar glyph */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'><path d='M6 2a1 1 0 011 1v1h10V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 112 0v1zm15 7H3v10h18V9z'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+    background-position: right calc(var(--spacing) * 3) center;
+
+    /* leave room so text doesn't overlap the icon */
+    padding-right: calc(var(--spacing) * 12);
+  }
+
+  /* hide the native (black) indicator so only our white icon shows */
+  .dark .input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark .input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .dark .input[type="month"]::-webkit-calendar-picker-indicator,
+  .dark .input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0; /* still clickable */
   }
 }

@@ -462,7 +462,9 @@ Best,
           </div>
 
           <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-            <div className="text-sm dark:text-white">Page {page} / {totalPages}</div>
+          <div className="text-sm text-zinc-700 dark:text-zinc-100">
+            Page {page} / {totalPages}
+          </div>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
