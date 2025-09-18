@@ -22,13 +22,14 @@ type EmailTemplate = {
   updated_at: string
 }
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// use (import.meta as any) to avoid TS error if vite/client types aren't included
+const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000'
 const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const cents = (d: number) => Math.round(d * 100)
 const dollars = (c: number) => c / 100
 
 export default function App() {
-  // THEME (unchanged)
+  /* ================= THEME ================= */
   const [dark, setDark] = useState<boolean>(() => {
     const saved = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) || ''
     if (saved === 'dark') return true
@@ -36,6 +37,7 @@ export default function App() {
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
   })
   useEffect(() => { document.documentElement.classList.toggle('dark', dark) }, [dark])
+
   function toggleTheme() {
     setDark(prev => {
       const next = !prev
@@ -49,26 +51,26 @@ export default function App() {
     setDark(systemDark)
   }
 
-  // DATA
+  /* ================= DATA ================= */
   const [rows, setRows] = useState<Invoice[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // Filters (unchanged)
+  // Filters
   const [status, setStatus] = useState<'all' | 'open' | 'overdue'>('all')
   const [aging, setAging] = useState<'any' | '30+' | '60+' | '90+'>('any')
   const [minAmt, setMinAmt] = useState<number | ''>('')
   const [maxAmt, setMaxAmt] = useState<number | ''>('')
   const [sort, setSort] = useState<'impact_desc' | 'amount_desc' | 'days_desc'>('impact_desc')
 
-  // Pagination (unchanged)
+  // Pagination
   const [page, setPage] = useState(1)
   const pageSize = 10
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
 
-  // Modal + form (unchanged)
+  // Modal + form
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Invoice | null>(null)
   const [fCustomer, setFCustomer] = useState('')
@@ -167,17 +169,7 @@ export default function App() {
     setModalOpen(true)
   }
 
-  // --- autosize helper (fits the email body perfectly, but user can't resize) ---
-  function useAutosizeTextArea(ref: React.RefObject<HTMLTextAreaElement>, value: string) {
-    useEffect(() => {
-      const el = ref.current
-      if (!el) return
-      el.style.height = 'auto'
-      el.style.height = `${el.scrollHeight}px`
-    }, [ref, value])
-  }
-
-  /* -------- Delete: modal version (same style as Edit) -------- */
+  /* ---------- Delete (modal same style as Edit) ---------- */
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteRow, setDeleteRow] = useState<Invoice | null>(null)
   function openDelete(row: Invoice) { setDeleteRow(row); setDeleteOpen(true) }
@@ -198,6 +190,18 @@ export default function App() {
   const [tpls, setTpls] = useState<EmailTemplate[]>([])
   const [tplLoading, setTplLoading] = useState(false)
   const [tplErr, setTplErr] = useState<string | null>(null)
+
+  // search for templates (for cleaner list)
+  const [tplQuery, setTplQuery] = useState('')
+  const filteredTpls = useMemo(() => {
+    const q = tplQuery.trim().toLowerCase()
+    if (!q) return tpls
+    return tpls.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      t.subject.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q)
+    )
+  }, [tplQuery, tpls])
 
   const [selectedTplId, setSelectedTplId] = useState<number | ''>('')
   const [promisedDate, setPromisedDate] = useState<string>('')
@@ -299,10 +303,19 @@ Best,
     await loadTemplates()
   }
 
-  // autosize setup for compose body
+  // autosize setup for compose body (fixed-size look, but auto fits content)
+  function useAutosizeTextArea(ref: React.RefObject<HTMLTextAreaElement>, value: string) {
+    useEffect(() => {
+      const el = ref.current
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }, [ref, value])
+  }
   const bodyRef = useRef<HTMLTextAreaElement | null>(null)
   useAutosizeTextArea(bodyRef, renderBody)
 
+  /* ================= RENDER ================= */
   return (
     <div className="min-h-screen">
       {/* toast */}
@@ -334,7 +347,7 @@ Best,
       </header>
 
       <main className="mx-auto max-w-6xl p-3 sm:p-4">
-        {/* Filters (unchanged) */}
+        {/* Filters */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 mb-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1">
@@ -386,7 +399,7 @@ Best,
           </div>
         </section>
 
-        {/* Table (unchanged) */}
+        {/* Table */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="text-sm text-zinc-600 dark:text-zinc-300">
@@ -538,74 +551,92 @@ Best,
         </div>
       )}
 
-      {/* Compose Email Modal (wider, fixed-size body auto-fits, copy toasts) */}
+      {/* Compose Email Modal — spaced layout */}
       {composeOpen && composeRow && (
         <div className="modal-overlay" onClick={() => setComposeOpen(false)}>
           <div
             className="modal-card"
-            style={{ width: 'min(96vw, 1000px)', maxWidth: '1000px' }}
+            style={{ width: 'min(96vw, 920px)', maxWidth: '920px' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-              <div>
+            <div className="mb-5">
+              <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold dark:text-zinc-100">Compose Email</h2>
-                <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-0.5">
-                  {composeRow.customer} • <span className="font-mono">{composeRow.number}</span> • {fmtUSD.format(dollars(composeRow.amount_cents))}
-                </div>
+                <button className="btn btn-ghost" onClick={() => setTplMgrOpen(true)}>Manage Templates</button>
               </div>
-              <button className="btn btn-ghost" onClick={() => setTplMgrOpen(true)}>Manage Templates</button>
+              <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1">
+                <span className="font-medium">{composeRow.customer}</span> • <span className="font-mono">{composeRow.number}</span> • {fmtUSD.format(dollars(composeRow.amount_cents))}
+              </div>
             </div>
 
-            {/* Recipient */}
-            <div className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 mb-3 bg-white dark:bg-zinc-900">
-              <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">To</div>
-              <div className="text-sm dark:text-zinc-100">{composeRow.customer_email || <span className="text-zinc-400">No Email On File</span>}</div>
+            {/* To */}
+            <div className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 bg-white dark:bg-zinc-900 mb-5">
+              <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">To</div>
+              <div className="text-sm mt-0.5 dark:text-zinc-100">
+                {composeRow.customer_email || <span className="text-red-600">No Email On File</span>}
+              </div>
             </div>
 
-            {/* Template Row */}
-            <div className="grid sm:grid-cols-2 gap-3">
+            {/* Template & Promised Date */}
+            <div className="grid sm:grid-cols-2 gap-3 mb-5">
               <label className="grid gap-1 text-sm">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Template</span>
-                <select className="select" value={selectedTplId} onChange={e => setSelectedTplId(e.target.value ? Number(e.target.value) : '' as any)}>
+                <select
+                  className="select"
+                  value={selectedTplId}
+                  onChange={e => setSelectedTplId(e.target.value ? Number(e.target.value) : ('' as any))}
+                >
                   <option value="">— Select —</option>
-                  {tpls.map(t => <option key={t.id} value={t.id}>{t.name} ({t.category})</option>)}
+                  {tpls.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.category})
+                    </option>
+                  ))}
                 </select>
               </label>
-              {tpls.find(t => t.id === selectedTplId)?.category === 'promise' && (
+
+              {tpls.find(t => t.id === selectedTplId)?.category === 'promise' ? (
                 <label className="grid gap-1 text-sm">
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Promised Date</span>
                   <input className="input" type="date" value={promisedDate} onChange={e => setPromisedDate(e.target.value)} />
                 </label>
+              ) : (
+                <div />
               )}
             </div>
 
-            {/* Subject / Body */}
-            {renderErr && <div className="mt-2 text-sm text-red-600">{renderErr}</div>}
-            <div className="mt-3 grid gap-2">
-              <label className="grid gap-1 text-sm">
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
-                <input className="input dark:text-zinc-100" value={renderSubject} onChange={e => setRenderSubject(e.target.value)} placeholder="Email Subject"/>
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                <textarea
-                  ref={bodyRef}
-                  className="textarea dark:text-zinc-100"
-                  style={{
-                    overflow: 'hidden',     // no internal scrollbar
-                    resize: 'none',         // user cannot resize
-                    minHeight: '260px',     // base size
-                  }}
-                  value={renderBody}
-                  onChange={(e) => setRenderBody(e.target.value)}
-                  placeholder="Email Body"
-                />
-              </label>
-            </div>
+            {/* Subject */}
+            {renderErr && <div className="text-sm text-red-600 mb-2">{renderErr}</div>}
+            <label className="grid gap-1 text-sm mb-5">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
+              <input
+                className="input dark:text-zinc-100"
+                value={renderSubject}
+                onChange={e => setRenderSubject(e.target.value)}
+                placeholder="Email Subject"
+              />
+            </label>
 
-            {/* Footer actions */}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
+            {/* Body — fixed-size auto-fit */}
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
+              <textarea
+                ref={bodyRef}
+                className="textarea dark:text-zinc-100"
+                style={{
+                  overflow: 'hidden',
+                  resize: 'none',
+                  minHeight: '300px'
+                }}
+                value={renderBody}
+                onChange={(e) => setRenderBody(e.target.value)}
+                placeholder="Email Body"
+              />
+            </label>
+
+            {/* Actions */}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button
                 className="btn btn-outline"
                 onClick={() => { navigator.clipboard.writeText(renderSubject); showToast('Subject Copied'); }}
@@ -629,7 +660,7 @@ Best,
         </div>
       )}
 
-      {/* Templates Manager (modernized, two-panel) */}
+      {/* Templates Manager — more spacious two-panel layout */}
       {tplMgrOpen && (
         <div className="modal-overlay" onClick={() => setTplMgrOpen(false)}>
           <div
@@ -637,41 +668,60 @@ Best,
             style={{ width: 'min(96vw, 1000px)', maxWidth: '1000px' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold dark:text-zinc-100">Email Templates</h2>
-              <button
-                className="btn btn-ghost"
-                onClick={() => {
-                  setEditingTpl(null)
-                  setTName('New Template')
-                  setTCategory('reminder')
-                  setTSubject('Reminder: Invoice {invoice_number} Due {due_date}')
-                  setTBody(`Hi {customer_name},\n\nJust a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.\n\nBest,\n{company_name}`)
-                  setTDefault(false)
-                }}
-              >
-                New Template
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  className="input w-32 sm:w-64"
+                  placeholder="Search templates…"
+                  value={tplQuery}
+                  onChange={e => setTplQuery(e.target.value)}
+                />
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setEditingTpl(null)
+                    setTName('New Template')
+                    setTCategory('reminder')
+                    setTSubject('Reminder: Invoice {invoice_number} Due {due_date}')
+                    setTBody(`Hi {customer_name},\n\nJust a friendly reminder that invoice {invoice_number} for {amount_usd} is due on {due_date}.\n\nBest,\n{company_name}`)
+                    setTDefault(false)
+                  }}
+                >
+                  New Template
+                </button>
+              </div>
             </div>
 
-            {tplErr && <div className="text-sm text-red-600 mb-2">{tplErr}</div>}
-            {tplLoading && <div className="text-sm text-zinc-500 mb-2">Loading…</div>}
-
-            <div className="grid sm:grid-cols-2 gap-3">
-              {/* Left: list */}
+            {/* Two columns */}
+            <div className="grid sm:grid-cols-5" style={{ gap: '1.25rem' }}>
+              {/* Left: compact list */}
               <div
-                className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 bg-white dark:bg-zinc-900"
-                style={{ maxHeight: '60vh', overflowY: 'auto' }}
+                className="sm:col-span-2 rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 bg-white dark:bg-zinc-900"
+                style={{ maxHeight: '64vh', overflowY: 'auto' }}
               >
-                {tpls.length === 0 && <div className="text-sm text-zinc-500">No Templates Yet.</div>}
-                {tpls.map(t => (
-                  <div key={t.id} className="rounded-xl p-3 mb-3 last:mb-0 ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900">
+                {filteredTpls.length === 0 && (
+                  <div className="text-sm text-zinc-500 p-3">No Matching Templates.</div>
+                )}
+
+                {filteredTpls.map(t => (
+                  <div
+                    key={t.id}
+                    className="rounded-xl p-3 mb-3 last:mb-0 ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-medium dark:text-zinc-100">
+                        <div className="font-medium dark:text-zinc-100 truncate">
                           {t.name}
-                          <span className="text-xs text-zinc-500 ml-2">({t.category})</span>
-                          {t.is_default ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span> : null}
+                          {t.is_default && (
+                            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-0.5">
+                          {t.category === 'reminder' && <span className="badge badge-sky mr-1">Reminder</span>}
+                          {t.category === 'followup' && <span className="badge badge-amber mr-1">Follow-Up</span>}
+                          {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
                         </div>
                         <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1 truncate">
                           Subject: {t.subject}
@@ -690,17 +740,13 @@ Best,
                         <button className="btn btn-danger" onClick={() => deleteTemplate(t.id)}>Delete</button>
                       </div>
                     </div>
-                    <pre className="mt-2 text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-300"
-                         style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace' }}>
-{t.body}
-                    </pre>
                   </div>
                 ))}
               </div>
 
               {/* Right: editor */}
-              <form onSubmit={saveTemplate} className="grid gap-3">
-                <div className="grid sm:grid-cols-2 gap-3">
+              <form onSubmit={saveTemplate} className="sm:col-span-3 grid gap-3">
+                <div className="grid sm:grid-cols-2 gap-3" style={{ marginBottom: '0.75rem' }}>
                   <label className="grid gap-1 text-sm">
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Name</span>
                     <input className="input" value={tName} onChange={e => setTName(e.target.value)} required />
@@ -715,7 +761,7 @@ Best,
                   </label>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="grid sm:grid-cols-2 gap-3" style={{ marginBottom: '0.75rem' }}>
                   <label className="grid gap-1 text-sm">
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subject</span>
                     <input className="input" value={tSubject} onChange={e => setTSubject(e.target.value)} required />
@@ -729,9 +775,9 @@ Best,
                   </label>
                 </div>
 
-                <label className="grid gap-1 text-sm">
+                <label className="grid gap-1 text-sm" style={{ marginBottom: '0.5rem' }}>
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                  <textarea className="textarea min-h-[180px]" value={tBody} onChange={e => setTBody(e.target.value)} required />
+                  <textarea className="textarea min-h-[220px]" value={tBody} onChange={e => setTBody(e.target.value)} required />
                 </label>
 
                 <div className="mt-2 flex justify-end gap-2">
@@ -739,9 +785,12 @@ Best,
                   <button type="submit" className="btn btn-primary">{editingTpl ? 'Save' : 'Create'}</button>
                 </div>
 
-                <div className="text-xs text-zinc-500 mt-3">
-                  Available Variables: {'{customer_name}'}, {'{customer_email}'}, {'{invoice_number}'}, {'{amount_usd}'}, {'{currency}'}, {'{due_date}'}, {'{days_overdue}'}, {'{company_name}'}, {'{today_date}'}, {'{promised_date}'}
-                </div>
+                <details className="mt-2 text-xs text-zinc-500">
+                  <summary className="cursor-pointer">Available Variables</summary>
+                  <div className="mt-2">
+                    {'{customer_name}'}, {'{customer_email}'}, {'{invoice_number}'}, {'{amount_usd}'}, {'{currency}'}, {'{due_date}'}, {'{days_overdue}'}, {'{company_name}'}, {'{today_date}'}, {'{promised_date}'}
+                  </div>
+                </details>
               </form>
             </div>
           </div>
