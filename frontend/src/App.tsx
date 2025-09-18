@@ -839,10 +839,11 @@ Best,
               {/* Right: editor */}
               <form onSubmit={saveTemplate} className="sm:col-span-3 grid gap-3">
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <label className="grid gap-1 text-sm" style={{ marginBottom: 32 }}>
+                  <label className="grid gap-1 text-sm">
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Name</span>
                     <input className="input" value={tName} onChange={e => setTName(e.target.value)} required />
                   </label>
+
                   <label className="grid gap-1 text-sm">
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Category</span>
                     <select className="select" value={tCategory} onChange={e => setTCategory(e.target.value as any)}>
@@ -869,7 +870,7 @@ Best,
 
                 <label className="grid gap-1 text-sm" style={{ marginBottom: '0.5rem' }}>
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                  <textarea className="textarea min-h-[220px]" value={tBody} onChange={e => setTBody(e.target.value)} required />
+                  <textarea className="textarea min-h-[220px] dark:text-zinc-100" value={tBody} onChange={e => setTBody(e.target.value)} required />
                 </label>
 
                 <div className="mt-2 flex justify-end gap-2">
