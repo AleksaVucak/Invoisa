@@ -226,14 +226,33 @@ export default function App() {
   const [renderBody, setRenderBody] = useState('')
   const [renderErr, setRenderErr] = useState<string | null>(null)
 
-  // Toast for copy actions
-  const [toast, setToast] = useState<string | null>(null)
-  const toastTimer = useRef<number | null>(null)
-  function showToast(msg: string) {
-    setToast(msg)
-    if (toastTimer.current) window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => setToast(null), 1400)
+  // Local visual feedback for copy buttons
+  const [copiedSubject, setCopiedSubject] = useState(false)
+  const [copiedBody, setCopiedBody] = useState(false)
+  const copySubjectTimer = useRef<number | null>(null)
+  const copyBodyTimer = useRef<number | null>(null)
+
+  function handleCopySubject() {
+    navigator.clipboard.writeText(renderSubject)
+    setCopiedSubject(true)
+    if (copySubjectTimer.current) window.clearTimeout(copySubjectTimer.current)
+    copySubjectTimer.current = window.setTimeout(() => setCopiedSubject(false), 1200)
   }
+
+  function handleCopyBody() {
+    navigator.clipboard.writeText(renderBody)
+    setCopiedBody(true)
+    if (copyBodyTimer.current) window.clearTimeout(copyBodyTimer.current)
+    copyBodyTimer.current = window.setTimeout(() => setCopiedBody(false), 1200)
+  }
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (copySubjectTimer.current) window.clearTimeout(copySubjectTimer.current)
+      if (copyBodyTimer.current) window.clearTimeout(copyBodyTimer.current)
+    }
+  }, [])
 
   // templates manager modal (opened from compose)
   const [tplMgrOpen, setTplMgrOpen] = useState(false)
@@ -334,16 +353,6 @@ Best,
   /* ================= RENDER ================= */
   return (
     <div className="min-h-screen">
-      {/* toast */}
-      {toast && (
-        <div
-          style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 9999 }}
-          className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2 text-sm dark:text-zinc-100 shadow-sm"
-        >
-          {toast}
-        </div>
-      )}
-
       <header className="sticky top-0 z-10 border-b border-zinc-200/70 dark:border-zinc-800/70 backdrop-blur bg-white/70 dark:bg-zinc-950/70">
         <div className="mx-auto max-w-6xl px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Invoisa</div>
@@ -599,16 +608,20 @@ Best,
             </div>
 
             {/* To */}
-            <div className="rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 bg-white dark:bg-zinc-900 mb-5">
-              <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">To</div>
-              <div className="text-sm mt-0.5 dark:text-zinc-100">
-                {composeRow.customer_email || <span className="text-red-600">No Email On File</span>}
+            <label className="grid gap-1 text-sm mb-5">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">To</span>
+              <div
+                className={`input dark:text-zinc-100 ${composeRow.customer_email ? '' : 'text-red-600'}`}
+                role="textbox"
+                aria-readonly="true"
+              >
+                {composeRow.customer_email || 'No Email On File'}
               </div>
-            </div>
+            </label>
 
             {/* Template & Promised Date */}
             <div className="grid sm:grid-cols-2 gap-3 mb-5">
-              <label className="grid gap-1 text-sm">
+              <label className="grid gap-1 text-sm mb-6">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Template</span>
                 <select
                   className="select"
@@ -664,19 +677,70 @@ Best,
             </label>
 
             {/* Actions */}
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <div className="mt-7 flex flex-wrap justify-end gap-2">
               <button
                 className="btn btn-outline"
-                onClick={() => { navigator.clipboard.writeText(renderSubject); showToast('Subject Copied'); }}
+                onClick={handleCopySubject}
+                style={
+                  copiedSubject
+                    ? {
+                      backgroundColor: 'var(--color-emerald-700)',
+                      borderColor: 'var(--color-emerald-700)',
+                      color: 'var(--color-white)',
+                      }
+                    : undefined
+                }
               >
+                {/* check icon appears briefly when copied */}
+                {copiedSubject && (
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
                 Copy Subject
               </button>
+
               <button
                 className="btn btn-outline"
-                onClick={() => { navigator.clipboard.writeText(renderBody); showToast('Body Copied'); }}
+                onClick={handleCopyBody}
+                style={
+                  copiedBody
+                    ? {
+                      backgroundColor: 'var(--color-emerald-700)',
+                      borderColor: 'var(--color-emerald-700)',
+                      color: 'var(--color-white)',
+                      }
+                    : undefined
+                }
               >
+                {copiedBody && (
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
                 Copy Body
               </button>
+
               <a
                 className="btn btn-primary"
                 href={`mailto:${encodeURIComponent((composeRow.customer_email || ''))}?subject=${encodeURIComponent(renderSubject)}&body=${encodeURIComponent(renderBody)}`}
@@ -774,8 +838,8 @@ Best,
 
               {/* Right: editor */}
               <form onSubmit={saveTemplate} className="sm:col-span-3 grid gap-3">
-                <div className="grid sm:grid-cols-2 gap-3" style={{ marginBottom: '0.75rem' }}>
-                  <label className="grid gap-1 text-sm">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <label className="grid gap-1 text-sm" style={{ marginBottom: 32 }}>
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Name</span>
                     <input className="input" value={tName} onChange={e => setTName(e.target.value)} required />
                   </label>
