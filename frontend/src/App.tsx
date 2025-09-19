@@ -482,8 +482,6 @@ Best,
               </select>
             </label>
 
-            <div style={{ height: 14 }} />
-
             {/* Center the Apply button in the remaining right-side space */}
             <div className="flex-1 flex justify-center">
               <button onClick={() => { fetchRows() }} className="btn btn-outline">Apply</button>
