@@ -442,6 +442,7 @@ Best,
 
         {/* Filters */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 pt-8 sm:pt-10 mb-4">
+          {/* Row 1: filters, with Apply centered in the remaining right-side space */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1">
               <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Status</div>
@@ -481,14 +482,24 @@ Best,
               </select>
             </label>
 
-            <div className="ml-auto flex gap-2">
-              <label className="btn btn-primary cursor-pointer">
-                {uploading ? 'Uploading…' : 'Import CSV'}
-                <input type="file" accept=".csv" className="hidden" onChange={onUploadCSV} disabled={uploading}/>
-              </label>
+            <div style={{ height: 14 }} />
+
+            {/* Center the Apply button in the remaining right-side space */}
+            <div className="flex-1 flex justify-center">
               <button onClick={() => { fetchRows() }} className="btn btn-outline">Apply</button>
-              <button onClick={openCreate} className="btn btn-primary">New Invoice</button>
             </div>
+          </div>
+
+          {/* Forced spacer to separate rows */}
+          <div className="h-3 sm:h-4" aria-hidden />
+
+          {/* Row 2: left-aligned action buttons with extra padding from filters */}
+          <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
+            <label className="btn btn-primary cursor-pointer" style={{ paddingTop: 6 }}>
+              {uploading ? 'Uploading…' : 'Import CSV'}
+              <input type="file" accept=".csv" className="hidden" onChange={onUploadCSV} disabled={uploading}/>
+            </label>
+            <button onClick={openCreate} className="btn btn-primary" style={{ paddingTop: 6 }}>New Invoice</button>
           </div>
         </section>
 
@@ -735,7 +746,6 @@ Best,
                     : undefined
                 }
               >
-                {/* check icon appears briefly when copied */}
                 {copiedSubject && (
                   <svg
                     aria-hidden="true"
