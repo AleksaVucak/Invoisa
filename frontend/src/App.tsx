@@ -436,9 +436,12 @@ Best,
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-3 sm:p-4">
+      <main className="mx-auto max-w-6xl px-3 sm:px-4 pb-3 sm:pb-4">
+        {/* Top spacer above Filters (same as below) */}
+        <div className="h-6 sm:h-6" aria-hidden />
+
         {/* Filters */}
-        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 mb-4">
+        <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 p-4 pt-8 sm:pt-10 mb-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1">
               <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Status</div>
@@ -488,6 +491,9 @@ Best,
             </div>
           </div>
         </section>
+
+        {/* Spacer between Filters and Table (slightly bigger) */}
+        <div className="h-6 sm:h-6" aria-hidden />
 
         {/* Table */}
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
