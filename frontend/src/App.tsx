@@ -81,11 +81,6 @@ export default function App() {
   const [maxAmt, setMaxAmt] = useState<number | ''>('')
   const [sort, setSort] = useState<'impact_desc' | 'amount_desc' | 'days_desc'>('impact_desc')
 
-  // Pagination
-  const [page, setPage] = useState(1)
-  const pageSize = 10
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
-
   // Modal + form
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Invoice | null>(null)
@@ -104,35 +99,83 @@ export default function App() {
     setFStatus('open')
   }
 
-  async function fetchRows(targetPage: number) {
-    setLoading(true); setError(null)
+  // ===== New: fetch ALL invoices (no pagination), adaptive batching to avoid 422 =====
+  async function fetchRows() {
+    setLoading(true);
+    setError(null);
+
     try {
-      const params = new URLSearchParams()
-      if (status !== 'all') params.set('status', status)
-      if (aging !== 'any') params.set('aging_min', aging.replace('+', ''))
-      if (minAmt !== '') params.set('min_amount', String(cents(Number(minAmt))))
-      if (maxAmt !== '') params.set('max_amount', String(cents(Number(maxAmt))))
-      params.set('sort', sort)
-      params.set('limit', String(pageSize))
-      params.set('offset', String((targetPage - 1) * pageSize))
+      // Base filter params (no limit/offset here)
+      const base = new URLSearchParams();
+      if (status !== 'all') base.set('status', status);
+      if (aging !== 'any') base.set('aging_min', String(parseInt(aging.replace('+', ''), 10)));
+      if (minAmt !== '') base.set('min_amount', String(cents(Number(minAmt))));
+      if (maxAmt !== '') base.set('max_amount', String(cents(Number(maxAmt))));
+      base.set('sort', sort);
 
-      const res = await fetch(`${API}/invoices?` + params.toString())
-      if (!res.ok) throw new Error(res.statusText)
-      setRows(await res.json())
-      const totalHeader = res.headers.get('X-Total-Count')
-      setTotal(totalHeader ? Number(totalHeader) : 0)
+      // Try in descending batch sizes; fall back if server rejects (422)
+      const tryLimits = [100, 50, 25, 10];
+      let all: Invoice[] = [];
+      let succeeded = false;
 
-      const url = new URL(window.location.href)
-      url.search = params.toString()
-      window.history.replaceState(null, '', url.toString())
+      for (const limit of tryLimits) {
+        try {
+          const agg: Invoice[] = [];
+          let offset = 0;
+
+          // Fetch sequential batches until the last (short) batch arrives
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const params = new URLSearchParams(base);
+            params.set('limit', String(limit));
+            params.set('offset', String(offset));
+
+            const res = await fetch(`${API}/invoices?${params.toString()}`);
+            if (res.status === 422) {
+              // Limit too large for this server — try a smaller one
+              throw new Error('LIMIT_UNSUPPORTED');
+            }
+            if (!res.ok) {
+              throw new Error(res.statusText || 'Failed to fetch invoices');
+            }
+
+            const chunk: Invoice[] = await res.json();
+            agg.push(...chunk);
+
+            if (chunk.length < limit) break; // last page reached
+            offset += limit;
+          }
+
+          all = agg;
+          succeeded = true;
+          break;
+        } catch (err: any) {
+          if (err?.message !== 'LIMIT_UNSUPPORTED' || limit === tryLimits[tryLimits.length - 1]) {
+            throw err;
+          }
+          // else fall through and try a smaller limit
+        }
+      }
+
+      if (!succeeded) throw new Error('Failed to load invoices');
+
+      setRows(all);
+      setTotal(all.length);
+
+      // Keep only filters in URL (no pagination params)
+      const url = new URL(window.location.href);
+      url.search = base.toString();
+      window.history.replaceState(null, '', url.toString());
     } catch (e: any) {
-      setError(e.message)
+      setRows([]);
+      setTotal(0);
+      setError(e?.message || 'Failed to load invoices');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
-  useEffect(() => { fetchRows(1); setPage(1) }, [])
+  useEffect(() => { fetchRows() }, [])
 
   async function submitForm(e: React.FormEvent) {
     e.preventDefault()
@@ -152,7 +195,7 @@ export default function App() {
         : await fetch(`${API}/invoices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) throw new Error(await res.text())
       setModalOpen(false)
-      await fetchRows(1); setPage(1)
+      await fetchRows()
     } catch (err: any) { alert(err.message) }
   }
 
@@ -166,7 +209,7 @@ export default function App() {
     fetch(`${API}/import/invoices`, { method: 'POST', body: fd })
       .then(async r => {
         if (!r.ok) throw new Error(await r.text())
-        await fetchRows(1); setPage(1)
+        await fetchRows()
       })
       .catch(e => alert(e.message))
       .finally(() => setUploading(false))
@@ -195,7 +238,7 @@ export default function App() {
       const res = await fetch(`${API}/invoices/${deleteRow.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       setDeleteOpen(false); setDeleteRow(null)
-      await fetchRows(page)
+      await fetchRows()
     } catch (err: any) { alert(err.message) }
   }
 
@@ -440,7 +483,7 @@ Best,
                 {uploading ? 'Uploading…' : 'Import CSV'}
                 <input type="file" accept=".csv" className="hidden" onChange={onUploadCSV} disabled={uploading}/>
               </label>
-              <button onClick={() => { setPage(1); fetchRows(1) }} className="btn btn-outline">Apply</button>
+              <button onClick={() => { fetchRows() }} className="btn btn-outline">Apply</button>
               <button onClick={openCreate} className="btn btn-primary">New Invoice</button>
             </div>
           </div>
@@ -450,7 +493,7 @@ Best,
         <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div className="text-sm text-zinc-600 dark:text-zinc-300">
-              {total > 0 ? `Showing ${((page-1)*pageSize)+1}–${Math.min(page*pageSize,total)} of ${total}` : 'No Results'}
+              {total > 0 ? `Showing ${total} Results` : 'No Results'}
             </div>
             {loading && <div className="text-sm text-zinc-500">Loading…</div>}
             {error && <div className="text-sm text-red-600">{error}</div>}
@@ -506,24 +549,6 @@ Best,
                 )}
               </tbody>
             </table>
-          </div>
-
-          <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-          <div className="text-sm text-zinc-700 dark:text-zinc-100">
-            Page {page} / {totalPages}
-          </div>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => { const p = Math.max(1, page - 1); setPage(p); fetchRows(p) }}
-                className="btn btn-outline disabled:opacity-50"
-              >Prev</button>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => { const p = Math.min(totalPages, page + 1); setPage(p); fetchRows(p) }}
-                className="btn btn-outline disabled:opacity-50"
-              >Next</button>
-            </div>
           </div>
         </section>
       </main>
