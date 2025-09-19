@@ -164,7 +164,7 @@ export default function App() {
     fd.append('csv_file', f)
     setUploading(true)
     fetch(`${API}/import/invoices`, { method: 'POST', body: fd })
-    .then(async r => {
+      .then(async r => {
         if (!r.ok) throw new Error(await r.text())
         await fetchRows(1); setPage(1)
       })
@@ -332,10 +332,24 @@ Best,
     setEditingTpl(null)
     await loadTemplates()
   }
+
+  // --- New: template delete confirm modal state & helpers ---
+  const [tplDeleteOpen, setTplDeleteOpen] = useState(false)
+  const [tplToDelete, setTplToDelete] = useState<EmailTemplate | null>(null)
+  function openTplDelete(t: EmailTemplate) { setTplToDelete(t); setTplDeleteOpen(true) }
+  async function confirmTplDelete() {
+    if (!tplToDelete) return
+    try {
+      const res = await fetch(`${API}/email/templates/${tplToDelete.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      setTplDeleteOpen(false); setTplToDelete(null)
+      await loadTemplates()
+    } catch (e: any) { alert(e?.message || 'Failed to delete template') }
+  }
   async function deleteTemplate(id: number) {
-    if (!confirm('Delete this template?')) return
-    await fetch(`${API}/email/templates/${id}`, { method: 'DELETE' })
-    await loadTemplates()
+    // kept for compatibility; not used directly by buttons anymore
+    const res = await fetch(`${API}/email/templates/${id}`, { method: 'DELETE' })
+    if (res.ok) await loadTemplates()
   }
 
   // autosize setup for compose body (fixed-size look, but auto fits content)
@@ -828,7 +842,7 @@ Best,
                             >
                               Edit
                             </button>
-                            <button className="btn btn-danger" onClick={() => deleteTemplate(t.id)}>Delete</button>
+                            <button className="btn btn-danger" onClick={() => openTplDelete(t)}>Delete</button>
                           </div>
                         </div>
                       </div>
@@ -897,6 +911,23 @@ Best,
                   </div>
                 </details>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New: Template Delete Confirmation Modal */}
+      {tplDeleteOpen && tplToDelete && (
+        <div className="modal-overlay" style={{ zIndex: 60 }} onClick={() => setTplDeleteOpen(false)}>
+          <div className="modal-card max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-2 dark:text-zinc-100">Delete Template</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+              Are you sure you want to delete{' '}
+              <span className="font-medium">{tplToDelete.name}</span>? This action cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn btn-ghost" onClick={() => setTplDeleteOpen(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmTplDelete}>Delete Template</button>
             </div>
           </div>
         </div>
