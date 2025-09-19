@@ -164,7 +164,7 @@ export default function App() {
     fd.append('csv_file', f)
     setUploading(true)
     fetch(`${API}/import/invoices`, { method: 'POST', body: fd })
-      .then(async r => {
+    .then(async r => {
         if (!r.ok) throw new Error(await r.text())
         await fetchRows(1); setPage(1)
       })
@@ -791,50 +791,56 @@ Best,
                 className="sm:col-span-2"
                 style={{ maxHeight: '64vh', overflowY: 'auto' }}
               >
-                <div className="grid gap-3">
+                <div className="grid gap-1">
                   {filteredTpls.length === 0 && (
                     <div className="text-sm text-zinc-500 p-3">No Matching Templates.</div>
                   )}
 
-                {filteredTpls.map(t => (
-                  <div
-                    key={t.id}
-                    className="rounded-xl border border-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden"
-                  >
-                    <div className="flex items-start justify-between gap-3 p-4">
-                      <div className="min-w-0">
-                        <div className="font-medium dark:text-zinc-100 truncate">
-                          {t.name}
-                          {t.is_default && (
-                            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span>
-                          )}
+                  {filteredTpls.map((t, i) => (
+                    <React.Fragment key={t.id}>
+                      <div
+                        className="rounded-xl border border-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between gap-3 p-4">
+                          <div className="min-w-0">
+                            <div className="font-medium dark:text-zinc-100 truncate">
+                              {t.name}
+                              {t.is_default && (
+                                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">Default</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1 truncate">
+                              Subject: {t.subject}
+                            </div>
+                            <div className="mt-1">
+                              {t.category === 'reminder' && <span className="badge badge-sky mr-1">Reminder</span>}
+                              {t.category === 'followup' && <span className="badge badge-amber mr-1">Follow-Up</span>}
+                              {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
+                            </div>
+                          </div>
+                          <div className="flex-none self-stretch flex items-center gap-2">
+                            <button
+                              className="btn btn-outline"
+                              onClick={() => {
+                                setEditingTpl(t)
+                                setTName(t.name); setTCategory(t.category); setTSubject(t.subject); setTBody(t.body); setTDefault(!!t.is_default)
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button className="btn btn-danger" onClick={() => deleteTemplate(t.id)}>Delete</button>
+                          </div>
                         </div>
-                        <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1 truncate">
-                          Subject: {t.subject}
-                        </div>
-                      <div className="mt-1">
-                        {t.category === 'reminder' && <span className="badge badge-sky mr-1">Reminder</span>}
-                        {t.category === 'followup' && <span className="badge badge-amber mr-1">Follow-Up</span>}
-                        {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
                       </div>
-                      </div>
-                      <div className="flex-none self-stretch flex items-center gap-2">
-                        <button
-                          className="btn btn-outline"
-                          onClick={() => {
-                            setEditingTpl(t)
-                            setTName(t.name); setTCategory(t.category); setTSubject(t.subject); setTBody(t.body); setTDefault(!!t.is_default)
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button className="btn btn-danger" onClick={() => deleteTemplate(t.id)}>Delete</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+
+                      {/* thin divider between templates */}
+                      {i < filteredTpls.length - 1 && (
+                        <div className="border-t border-zinc-200 dark:border-zinc-800 mx-1" />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
-            </div>
 
               {/* Right: editor */}
               <form onSubmit={saveTemplate} className="sm:col-span-3 grid gap-3">
