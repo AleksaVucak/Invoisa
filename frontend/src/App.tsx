@@ -592,6 +592,7 @@ Best,
               Are you sure you want to delete <span className="font-medium">{deleteRow.customer}</span> – <span className="font-mono">{deleteRow.number}</span>?
               This action cannot be undone.
             </p>
+            <div className="h-6" />
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn btn-ghost" onClick={() => setDeleteOpen(false)}>Cancel</button>
               <button className="btn btn-danger" onClick={confirmDelete}>Delete Invoice</button>
@@ -925,6 +926,7 @@ Best,
               Are you sure you want to delete{' '}
               <span className="font-medium">{tplToDelete.name}</span>? This action cannot be undone.
             </p>
+            <div className="h-6" />
             <div className="mt-4 flex justify-end gap-2">
               <button className="btn btn-ghost" onClick={() => setTplDeleteOpen(false)}>Cancel</button>
               <button className="btn btn-danger" onClick={confirmTplDelete}>Delete Template</button>
