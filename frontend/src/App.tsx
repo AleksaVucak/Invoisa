@@ -347,10 +347,6 @@ Best,
       el.style.height = `${el.scrollHeight}px`
     }, [ref, value])
   }
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null)
-  useAutosizeTextArea(bodyRef, renderBody)
-  const tBodyRef = useRef<HTMLTextAreaElement | null>(null)
-  useAutosizeTextArea(tBodyRef, tBody)
 
   /* ================= RENDER ================= */
   return (
@@ -595,7 +591,12 @@ Best,
         <div className="modal-overlay" onClick={() => setComposeOpen(false)}>
           <div
             className="modal-card"
-            style={{ width: 'min(96vw, 920px)', maxWidth: '920px' }}
+            style={{
+              width: 'min(96vw, 920px)',
+              maxWidth: '920px',
+              maxHeight: 'calc(100vh - 112px)',
+              overflow: 'auto'
+            }}    
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -661,17 +662,12 @@ Best,
               />
             </label>
 
-            {/* Body — fixed-size auto-fit */}
-            <label className="grid gap-1 text-sm">
+            {/* Body — fixed-size, scrollable, non-resizable */}
+            <label className="grid gap-1 text-sm mb-8">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
               <textarea
-                ref={bodyRef}
-                className="textarea dark:text-zinc-100"
-                style={{
-                  overflow: 'hidden',
-                  resize: 'none',
-                  minHeight: '300px'
-                }}
+                className="textarea dark:text-zinc-100 overflow-auto"
+                style={{ height: '320px', minHeight: '320px', maxHeight: '320px', resize: 'none' }}
                 value={renderBody}
                 onChange={(e) => setRenderBody(e.target.value)}
                 placeholder="Email Body"
@@ -679,7 +675,7 @@ Best,
             </label>
 
             {/* Actions */}
-            <div className="mt-7 flex flex-wrap justify-end gap-2">
+            <div className="mt-2 flex flex-wrap justify-end gap-2">
               <button
                 className="btn btn-outline"
                 onClick={handleCopySubject}
@@ -759,7 +755,7 @@ Best,
         <div className="modal-overlay" onClick={() => setTplMgrOpen(false)}>
           <div
             className="modal-card"
-            style={{ width: 'min(96vw, 1000px)', maxWidth: '1000px' }}
+            style={{ width: 'min(96vw, 920px)', maxWidth: '920px', maxHeight: 'calc(100vh - 112px)', overflow: 'auto'}}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -792,19 +788,20 @@ Best,
             <div className="grid sm:grid-cols-5" style={{ gap: '1.25rem' }}>
               {/* Left: compact list */}
               <div
-                className="sm:col-span-2 rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800 p-3 bg-white dark:bg-zinc-900"
+                className="sm:col-span-2"
                 style={{ maxHeight: '64vh', overflowY: 'auto' }}
               >
-                {filteredTpls.length === 0 && (
-                  <div className="text-sm text-zinc-500 p-3">No Matching Templates.</div>
-                )}
+                <div className="grid gap-3">
+                  {filteredTpls.length === 0 && (
+                    <div className="text-sm text-zinc-500 p-3">No Matching Templates.</div>
+                  )}
 
                 {filteredTpls.map(t => (
                   <div
                     key={t.id}
-                    className="rounded-xl p-4 mb-3 last:mb-0 ring-1 ring-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900"
+                    className="rounded-xl border border-zinc-200 dark:ring-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3 p-4">
                       <div className="min-w-0">
                         <div className="font-medium dark:text-zinc-100 truncate">
                           {t.name}
@@ -821,7 +818,7 @@ Best,
                         {t.category === 'promise' && <span className="badge badge-green mr-1">Promise-To-Pay</span>}
                       </div>
                       </div>
-                      <div className="flex-shrink-0 flex gap-2">
+                      <div className="flex-none self-stretch flex items-center gap-2">
                         <button
                           className="btn btn-outline"
                           onClick={() => {
@@ -837,6 +834,7 @@ Best,
                   </div>
                 ))}
               </div>
+            </div>
 
               {/* Right: editor */}
               <form onSubmit={saveTemplate} className="sm:col-span-3 grid gap-3">
@@ -870,9 +868,15 @@ Best,
                   </label>
                 </div>
 
-                <label className="grid gap-1 text-sm" style={{ marginBottom: '0.5rem' }}>
+                <label className="grid gap-1 text-sm mb-8">
                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Body</span>
-                  <textarea ref={tBodyRef} className="textarea dark:text-zinc-100" style={{ overflow: 'hidden', resize: 'none', minHeight: '260px' }} value={tBody} onChange={e => setTBody(e.target.value)} required />
+                  <textarea
+                    className="textarea dark:text-zinc-100 overflow-auto"
+                    style={{ height: '36vh', minHeight: '36vh', maxHeight: '36vh', resize: 'none' }}
+                    value={tBody}
+                    onChange={e => setTBody(e.target.value)}
+                    required
+                  />
                 </label>
 
                 <div className="mt-2 flex justify-end gap-2">
